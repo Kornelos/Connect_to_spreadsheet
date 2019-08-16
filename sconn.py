@@ -12,26 +12,23 @@ from oauth2client.service_account import ServiceAccountCredentials
 import os.path
 import gspread
 from sys import argv
-from secrets import garmin_email, garmin_password
+from secrets import garmin_email, garmin_password, test_spreadsheet_url as spreadsheet_url, FTP
 
 
 login_url = "https://sso.garmin.com/sso/signin?service=https%3A%2F%2Fconnect.garmin.com%2Fmodern%2F&webhost=https%3A%2F%2Fconnect.garmin.com%2Fmodern%2F&source=https%3A%2F%2Fconnect.garmin.com%2Fsignin%2F&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fmodern%2F&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fmodern%2F&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.2-min.css&privacyStatementUrl=https%3A%2F%2Fwww.garmin.com%2Fen-US%2Fprivacy%2Fconnect%2F&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=true&generateTwoExtraServiceTickets=false&generateNoServiceTicket=false&globalOptInShown=true&globalOptInChecked=false&mobile=false&connectLegalTerms=true&showTermsOfUse=false&showPrivacyPolicy=false&showConnectLegalAge=false&locationPromptShown=true&showPassword=true#"
-# test_spreadsheet_url = "https://docs.google.com/spreadsheets/d/1TYdmcRtFYMPQY2Qz4hY7T6BNJxo8Fa61sCfX2sg5q88/edit#gid=629474311"
-spreadsheet_url = "https://docs.google.com/spreadsheets/d/146ee6yH1tK3IGcWsgvl8KLAJU7QBUx7P2yiqWHMeEA0/edit?ts=5c69ad86#gid=629474311"
-worksheet_name = 'Sierpień 2019'
 scope = ['https://spreadsheets.google.com/feeds',
          'https://www.googleapis.com/auth/drive']
-FTP = 315
 
 
 def download_csv():
+    """Downloads a csv file from garmin connect profile specified in secrets.py"""
     fp = webdriver.FirefoxProfile()
     fp.set_preference("browser.download.folderList", 2)
     fp.set_preference("browser.download.manager.showWhenStarting", False)
     fp.set_preference("browser.download.dir", os.getcwd())
     fp.set_preference("browser.helperApps.neverAsk.saveToDisk", "text/csv")
     options = FirefoxOptions()
-    options.add_argument("--headless")
+    options.add_argument("--headless") # in background mode
     with webdriver.Firefox(firefox_profile=fp, options=options) as driver:
         wait = WebDriverWait(driver, 10)
         driver.get(login_url)
@@ -45,7 +42,7 @@ def download_csv():
         sleep(1)
 
 
-if __name__ == '__main__':
+def main():
     iterations = None
     if argv.count is 2:
         assert argv[1].isnumeric() is False, "USAGE: number of iterations or nothing for full list iteration"
@@ -57,10 +54,12 @@ if __name__ == '__main__':
     df['Date'] = df['Date'].str[:10]
     df = df.sort_values('Distance', ascending=False).drop_duplicates('Date').sort_index()  # longest workout per day
     os.remove('Activities.csv')
+    # logging into Google Sheet
     credentials = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
     gc = gspread.authorize(credentials)
     sh = gc.open_by_url(spreadsheet_url)
-    worksheet = sh.worksheet(worksheet_name)
+    worksheet = sh.get_worksheet(0) # open latest created worksheet
+    # worksheet population with data
     i = 0
     if iterations is None:
         iterations = len(df.index)
@@ -82,3 +81,7 @@ if __name__ == '__main__':
         except gspread.exceptions.GSpreadException:
             continue
         i += 1
+
+
+if __name__ == '__main__':
+    main()
